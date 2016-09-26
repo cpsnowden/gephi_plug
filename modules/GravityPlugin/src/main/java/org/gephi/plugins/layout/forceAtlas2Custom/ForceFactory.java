@@ -297,8 +297,8 @@ public class ForceFactory {
             ForceAtlas2LayoutData nLayout = n.getLayoutData();
 
             // Get the distance to respective sources of gravity 
-            double gx = nLayout.gravity_x * (gravityXCoeff * coefficient);
-            double gy = nLayout.gravity_y * (gravityYCoeff * coefficient);
+            double gx = nLayout.gravity_x * (gravityXCoeff * coefficient) ;
+            double gy = nLayout.gravity_y * (gravityYCoeff * coefficient) ;
                     
             double xDist = n.x() - gx;
             double yDist = n.y() - gy;
@@ -308,8 +308,8 @@ public class ForceFactory {
                 // NB: factor = force / distance
                 double factor = coefficient * nLayout.mass * g;
 
-                nLayout.dx -= xDist * factor;
-                nLayout.dy -= yDist * factor;
+                nLayout.dx -= xDist * factor * nLayout.gravity_x_strength;
+                nLayout.dy -= yDist * factor * nLayout.gravity_y_strength ;
             }
         }
     }

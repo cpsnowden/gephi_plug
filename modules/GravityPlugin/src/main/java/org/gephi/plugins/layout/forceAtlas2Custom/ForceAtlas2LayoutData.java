@@ -58,4 +58,6 @@ public class ForceAtlas2LayoutData implements LayoutData {
     // Gravity source
     public double gravity_x = 0;
     public double gravity_y = 0;
+    public double gravity_x_strength = 1.0;
+    public double gravity_y_strength = 1.0;
 }

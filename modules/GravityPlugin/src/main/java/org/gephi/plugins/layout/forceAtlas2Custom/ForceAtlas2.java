@@ -62,6 +62,7 @@ import org.gephi.plugins.layout.forceAtlas2Custom.ForceFactory.RepulsionForce;
 import org.gephi.layout.spi.Layout;
 import org.gephi.layout.spi.LayoutBuilder;
 import org.gephi.layout.spi.LayoutProperty;
+import java.io.*;
 import org.openide.util.Exceptions;
 import org.openide.util.NbBundle;
 
@@ -96,6 +97,12 @@ public class ForceAtlas2 implements Layout {
     private static final double MAX_GRAVITY = 100;
     private double gravityXRatio;
     private double gravityYRatio;
+    private List<Double> swingingHistory = new ArrayList();
+    private List<Double> tractionHistory = new ArrayList();
+    private boolean performanceMonitor = true;
+    private List<Long> nanoStepTimes = new ArrayList<Long>();
+
+
 
     public ForceAtlas2(ForceAtlas2Builder layoutBuilder) {
         this.layoutBuilder = layoutBuilder;
@@ -119,13 +126,36 @@ public class ForceAtlas2 implements Layout {
         double min_y = Double.POSITIVE_INFINITY;
         double max_y = 0;
         int missing = 0;
-
+        int strength_missing = 0;
         for (Node n : nodes) {
             if (n.getLayoutData() == null || !(n.getLayoutData() instanceof ForceAtlas2LayoutData)) {
                 ForceAtlas2LayoutData nLayout = new ForceAtlas2LayoutData();
                 n.setLayoutData(nLayout);
             }
-            
+
+            double gravity_x_strength = 1.0;
+            double gravity_y_strength = 1.0;
+
+            try {
+                gravity_x_strength = (Double) n.getAttribute("gravity_x_strength");
+            }
+            catch (IllegalArgumentException  ex){
+                strength_missing++;
+            }
+            catch (NullPointerException ex){
+                strength_missing++;
+            }
+
+            try {
+                gravity_y_strength = (Double) n.getAttribute("gravity_y_strength");;
+            }
+            catch (IllegalArgumentException ex){
+                strength_missing++;
+            }
+            catch (NullPointerException ex){
+                strength_missing++;
+            }
+//            System.out.println(gravity_x_strength);
             // Calculating data for multiple sources of gravity
             double gravity_y = 0.0;
             double gravity_x = 0.0;
@@ -150,7 +180,7 @@ public class ForceAtlas2 implements Layout {
                 missing++;
             }
             
-            
+
             // Calculate gravity range to scale down if needed
             if (gravity_x < min_x) min_x = gravity_x;
             if (gravity_x > max_x) max_x = gravity_x;           
@@ -163,6 +193,13 @@ public class ForceAtlas2 implements Layout {
             nLayout.old_dy = 0;
             nLayout.dx = 0;
             nLayout.dy = 0;
+
+            nLayout.gravity_x_strength = gravity_x_strength;
+            nLayout.gravity_y_strength = gravity_y_strength;
+        }
+
+        if (strength_missing > 0) {
+            System.out.println("Some nodes missing attributes(" + strength_missing + ") 'gravity_x_strength' or 'gravity_y_strength', using 1.0 instead");
         }
         
         // Scaling down gravity_x
@@ -208,7 +245,7 @@ public class ForceAtlas2 implements Layout {
         if (missing > 0) {
             System.out.println("Some nodes missing attributes(" + missing + ") 'gravity_x' or 'gravity_y', using 0.0 instead");
         }
-        
+        System.out.println("Blah");
         pool = Executors.newFixedThreadPool(threadCount);
         currentThreadCount = threadCount;
     }
@@ -219,6 +256,8 @@ public class ForceAtlas2 implements Layout {
         if (graphModel == null) {
             return;
         }
+        long start = System.nanoTime();
+        System.out.println("Running");
         graph = graphModel.getGraphVisible();
 
         graph.readLock();
@@ -305,6 +344,9 @@ public class ForceAtlas2 implements Layout {
                 totalEffectiveTraction += nLayout.mass * 0.5 * Math.sqrt(Math.pow(nLayout.old_dx + nLayout.dx, 2) + Math.pow(nLayout.old_dy + nLayout.dy, 2));
             }
         }
+//        swingingHistory.add(totalSwinging);
+//        tractionHistory.add(totalEffectiveTraction);
+//        System.out.println(totalSwinging + ","+totalEffectiveTraction);
         // We want that swingingMovement < tolerance * convergenceMovement
 
         // Optimize jitter tolerance
@@ -382,6 +424,9 @@ public class ForceAtlas2 implements Layout {
             }
         }
         graph.readUnlockAll();
+        long step = System.nanoTime() - start;
+        System.out.println("Time: " + step + " " + nanoStepTimes.size());
+        nanoStepTimes.add(step);
     }
 
     @Override
@@ -391,6 +436,35 @@ public class ForceAtlas2 implements Layout {
 
     @Override
     public void endAlgo() {
+//        System.out.println("Writing data file");
+//        try {
+//            File file = new File("./Storage.dat");
+//            if (!file.exists()) {
+//                file.createNewFile();
+//            }
+//            FileWriter fw = new FileWriter(file);
+//            BufferedWriter bw = new BufferedWriter(fw);
+//            bw.write("Traction,Swing\n");
+//            for (int i = 0; i < tractionHistory.size(); i++) {
+//                bw.write(tractionHistory.get(i).toString() + "," + swingingHistory.get(i).toString() + "\n");
+//            }
+//            bw.flush();
+//            bw.close();
+//        }catch(IOException e){
+//
+//        }
+        try {
+            FileWriter writer = new FileWriter("Performance" + System.nanoTime() + ".dat");
+            writer.write("[");
+            for(Long l:nanoStepTimes){
+                writer.write(l + ",");
+            }
+            writer.write("]");
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
         for (Node n : graph.getNodes()) {
             n.setLayoutData(null);
         }
